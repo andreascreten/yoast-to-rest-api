@@ -41,7 +41,7 @@ class Yoast_To_REST_API {
 			'yoast_meta',
 			array(
 				'get_callback'    => array( $this, 'wp_api_encode_yoast' ),
-				'update_callback' => array( $this, 'wp_api_update_yoast' ),
+				'update_callback' => null,
 				'schema'          => null,
 			)
 		);
@@ -51,26 +51,6 @@ class Yoast_To_REST_API {
 			'yoast_meta',
 			array(
 				'get_callback'    => array( $this, 'wp_api_encode_yoast' ),
-				'update_callback' => array( $this, 'wp_api_update_yoast' ),
-				'schema'          => null,
-			)
-		);
-
-		// Category
-		register_rest_field( 'category',
-			'yoast_meta',
-			array(
-				'get_callback'    => array( $this, 'wp_api_encode_yoast_category' ),
-				'update_callback' => null,
-				'schema'          => null,
-			)
-		);
-
-		// Tag
-		register_rest_field( 'tag',
-			'yoast_meta',
-			array(
-				'get_callback'    => array( $this, 'wp_api_encode_yoast_tag' ),
 				'update_callback' => null,
 				'schema'          => null,
 			)
@@ -87,101 +67,41 @@ class Yoast_To_REST_API {
 				'yoast_meta',
 				array(
 					'get_callback'    => array( $this, 'wp_api_encode_yoast' ),
-					'update_callback' => array( $this, 'wp_api_update_yoast' ),
+					'update_callback' => null,
 					'schema'          => null,
 				)
 			);
 		}
 	}
 
-	/**
-	 * Updates post meta with values from post/put request.
-	 *
-	 * @param array $value
-	 * @param object $data
-	 * @param string $field_name
-	 *
-	 * @return array
-	 */
-	function wp_api_update_yoast( $value, $data, $field_name ) {
-
-		foreach ( $value as $k => $v ) {
-
-			if ( in_array( $k, $this->keys ) ) {
-				! empty( $k ) ? update_post_meta( $data->ID, '_' . $k, $v ) : null;
-			}
-		}
-
-		return $this->wp_api_encode_yoast( $data->ID, null, null );
+	function wp_api_encode_yoast( $post, $field_name, $request ) {
+        $yoast_meta = [];
+	    foreach($this->keys as $key) {
+            $yoast_meta[$key] = get_post_meta($post['id'], '_' . $key, true);
+        }
+		return $yoast_meta;
 	}
 
-	function wp_api_encode_yoast( $p, $field_name, $request ) {
-		$wpseo_frontend = WPSEO_Frontend_To_REST_API::get_instance();
-		$wpseo_frontend->reset();
-
-		query_posts( array(
-			'p'         => $p['id'], // ID of a page, post, or custom type
-			'post_type' => 'any'
-		) );
-
-		the_post();
-
+	private function wp_api_encode_taxonomy($termId) {
 		$yoast_meta = array(
-			'yoast_wpseo_title'     => $wpseo_frontend->get_content_title(),
-			'yoast_wpseo_metadesc'  => $wpseo_frontend->metadesc( false ),
-			'yoast_wpseo_canonical' => $wpseo_frontend->canonical( false ),
-		);
-
-		wp_reset_query();
-
-		return (array) $yoast_meta;
-	}
-
-	private function wp_api_encode_taxonomy() {
-		$wpseo_frontend = WPSEO_Frontend_To_REST_API::get_instance();
-		$wpseo_frontend->reset();
-
-		$yoast_meta = array(
-			'yoast_wpseo_title'    => $wpseo_frontend->get_taxonomy_title(),
-			'yoast_wpseo_metadesc' => $wpseo_frontend->metadesc( false ),
+			'yoast_wpseo_title'    => get_the_title($termId),
+			'yoast_wpseo_metadesc' => term_description($termId),
 		);
 
 		return (array) $yoast_meta;
 	}
 
 	function wp_api_encode_yoast_category( $category ) {
-		query_posts( array(
-			'cat' => $category['id'],
-		) );
-
-		the_post();
-
-		$res = $this->wp_api_encode_taxonomy();
-
-		wp_reset_query();
-
-		return $res;
+        return $this->wp_api_encode_taxonomy($category['id']);
 	}
 
 	function wp_api_encode_yoast_tag( $tag ) {
-		query_posts( array(
-			'tag_id' => $tag['id'],
-		) );
-
-		the_post();
-
-		$res = $this->wp_api_encode_taxonomy();
-
-		wp_reset_query();
-
-		return $res;
+        return $this->wp_api_encode_taxonomy($tag['id']);
 	}
 }
 
 function WPAPIYoast_init() {
 	if ( class_exists( 'WPSEO_Frontend' ) ) {
-		include __DIR__ . '/classes/class-wpseo-frontend-to-rest-api.php';
-
 		$yoast_To_REST_API = new Yoast_To_REST_API();
 	} else {
 		add_action( 'admin_notices', 'wpseo_not_loaded' );
